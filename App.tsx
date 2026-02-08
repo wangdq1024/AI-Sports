@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SportProject, AnalysisResult, HistoryItem } from './types';
 import { analyzeSportsVideoStreaming } from './services/geminiService';
-import { saveHistoryItem, getHistory, clearHistory, deleteHistoryItem, PersistedHistoryItem } from './services/dbService';
+import { saveHistoryItem, getHistory, clearHistory, PersistedHistoryItem } from './services/dbService';
 import Header from './components/Header';
 import ProjectSelector from './components/ProjectSelector';
 import VideoUploader from './components/VideoUploader';
@@ -19,12 +19,10 @@ const App: React.FC = () => {
   
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Load history from IndexedDB on mount
   useEffect(() => {
     const loadData = async () => {
       try {
         const persistedItems = await getHistory();
-        // Convert Blobs to temporary URLs for the UI
         const historyWithUrls: HistoryItem[] = persistedItems.map(item => ({
           ...item,
           videoUrl: URL.createObjectURL(item.videoBlob)
@@ -35,14 +33,11 @@ const App: React.FC = () => {
       }
     };
     loadData();
-
-    // Cleanup URLs on unmount
     return () => {
       history.forEach(item => URL.revokeObjectURL(item.videoUrl));
     };
   }, []);
 
-  // Auto scroll to bottom of stream
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -71,7 +66,6 @@ const App: React.FC = () => {
 
   const handleStartAnalysis = async () => {
     if (!videoFile) return;
-
     setIsAnalyzing(true);
     setReport(null);
     setStreamingText("");
@@ -86,16 +80,12 @@ const App: React.FC = () => {
         setStreamingText(fullText);
       }
 
-      // Extract JSON from fullText
       const jsonMatch = fullText.match(/```json\n([\s\S]*?)\n```/) || fullText.match(/{[\s\S]*}/);
       if (jsonMatch) {
         try {
           const result = JSON.parse(jsonMatch[1] || jsonMatch[0]) as AnalysisResult;
           setReport(result);
-          
           const id = Date.now().toString();
-          
-          // Save to IndexedDB (with actual Blob)
           const persistedItem: PersistedHistoryItem = {
             id,
             project: selectedProject,
@@ -104,12 +94,7 @@ const App: React.FC = () => {
             analysis: result
           };
           await saveHistoryItem(persistedItem);
-
-          // Update State (with URL)
-          const newItem: HistoryItem = {
-            ...persistedItem,
-            videoUrl: previewUrl || ''
-          };
+          const newItem: HistoryItem = { ...persistedItem, videoUrl: previewUrl || '' };
           setHistory(prev => [newItem, ...prev].slice(0, 20));
         } catch (e) {
           console.error("JSON parse failed", e);
@@ -127,7 +112,7 @@ const App: React.FC = () => {
     setSelectedProject(item.project);
     setPreviewUrl(item.videoUrl);
     setReport(item.analysis);
-    setStreamingText("从历史记录加载...");
+    setStreamingText("从历史记录加载分析报告...");
     setVideoFile(null); 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -145,60 +130,81 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col pb-12">
+    <div className="min-h-screen flex flex-col pb-20 overflow-x-hidden">
       <Header />
 
-      <main className="flex-grow container mx-auto px-4 py-8 max-w-6xl flex flex-col lg:flex-row gap-8">
-        <div className="flex-1">
-          <section className="text-center lg:text-left mb-12">
-            <h1 className="text-4xl font-extrabold text-slate-900 mb-4">
-              AI 运动 <span className="text-blue-600">实时分析</span>
+      <main className="flex-grow container mx-auto px-4 py-12 max-w-7xl flex flex-col lg:flex-row gap-10">
+        {/* Main Section */}
+        <div className="flex-1 space-y-10">
+          <section className="text-center lg:text-left relative">
+            <div className="absolute -left-10 top-0 w-24 h-24 bg-blue-500/10 blur-3xl rounded-full"></div>
+            <h1 className="text-5xl md:text-6xl font-black text-slate-900 mb-6 leading-none sport-font italic tracking-tighter uppercase">
+              AI <span className="text-blue-600 drop-shadow-sm">智能教练系统</span>
             </h1>
-            <p className="text-lg text-slate-600">
-              数据已加密存储于本地 IndexedDB，支持刷新后继续查看视频与报告。
+            <p className="text-xl text-slate-500 font-medium max-w-2xl">
+              每一毫秒的动作捕捉，每一次发力的深度剖析。数据化你的运动潜能。
             </p>
           </section>
 
-          <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200">
-            <div className="mb-8">
-              <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
-                <span className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center mr-3 text-sm">1</span>
-                项目与视频
-              </h2>
+          <div className="bg-white/60 glass-effect rounded-[40px] p-8 md:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white relative overflow-hidden">
+             {/* Decorative Elements */}
+             <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-blue-50 to-transparent rounded-bl-full opacity-50"></div>
+             
+            <div className="mb-12 relative z-10">
+              <div className="flex items-center space-x-3 mb-6">
+                <span className="w-10 h-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black italic -skew-x-6">01</span>
+                <h2 className="text-xl font-black uppercase tracking-widest text-slate-800">选择运动项目</h2>
+              </div>
               <ProjectSelector selected={selectedProject} onSelect={setSelectedProject} />
+              
+              <div className="flex items-center space-x-3 mb-6">
+                <span className="w-10 h-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black italic -skew-x-6">02</span>
+                <h2 className="text-xl font-black uppercase tracking-widest text-slate-800">上传运动录像</h2>
+              </div>
               <VideoUploader onFileSelect={handleFileSelect} previewUrl={previewUrl} />
             </div>
 
-            <div className="flex justify-center pt-2">
+            <div className="flex justify-center pt-4 relative z-10">
               <button
                 onClick={handleStartAnalysis}
                 disabled={!videoFile || isAnalyzing}
-                className={`w-full max-w-md py-4 rounded-2xl font-bold text-lg transition-all shadow-lg ${
+                className={`w-full max-w-lg py-5 rounded-2xl font-black text-xl uppercase tracking-widest transition-all shadow-2xl ${
                   !videoFile || isAnalyzing
                     ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-blue-200'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-700 text-white hover:scale-[1.02] active:scale-100 hover:shadow-blue-500/40'
                 }`}
               >
-                {isAnalyzing ? '教练正在观察中...' : '开始智能分析'}
+                {isAnalyzing ? (
+                  <span className="flex items-center justify-center">
+                    <svg className="animate-spin h-6 w-6 mr-3 text-white" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    正在深度分析中...
+                  </span>
+                ) : '开启 AI 动作诊断'}
               </button>
             </div>
           </div>
 
           {(streamingText || isAnalyzing) && (
-            <div className="mt-8 bg-slate-900 text-slate-100 rounded-3xl p-6 shadow-2xl overflow-hidden border border-slate-700">
-              <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs font-mono uppercase tracking-widest text-slate-400">Coach's Live Notes</span>
+            <div className="mt-8 mesh-gradient text-slate-100 rounded-[32px] p-8 shadow-2xl relative overflow-hidden border border-slate-700 glow-blue">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <svg className="w-32 h-32" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              </div>
+              <div className="flex items-center justify-between mb-6 border-b border-slate-700/50 pb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></div>
+                  <span className="text-xs font-black uppercase tracking-[0.3em] text-blue-400">教练实时点评</span>
                 </div>
-                {isAnalyzing && <span className="text-xs text-blue-400 animate-pulse">Analyzing Frames...</span>}
+                {isAnalyzing && <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">正在分析生物力学数据...</span>}
               </div>
               <div 
                 ref={scrollRef}
-                className="font-mono text-sm leading-relaxed h-48 overflow-y-auto whitespace-pre-wrap custom-scrollbar"
+                className="font-mono text-base leading-relaxed h-56 overflow-y-auto whitespace-pre-wrap custom-scrollbar pr-4 text-slate-300"
               >
-                {streamingText || "准备接收分析数据..."}
-                {isAnalyzing && <span className="inline-block w-2 h-4 bg-blue-500 ml-1 animate-bounce"></span>}
+                {streamingText || "启动逐帧诊断程序..."}
+                {isAnalyzing && <span className="inline-block w-2 h-5 bg-blue-500 ml-2 animate-pulse align-middle"></span>}
               </div>
             </div>
           )}
@@ -206,43 +212,44 @@ const App: React.FC = () => {
           {report && <AnalysisReport report={report} />}
         </div>
 
-        <div className="lg:w-80 space-y-6">
-          <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 sticky top-24">
-            <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center">
-              <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              分析历史 (本地保存)
-            </h3>
+        {/* History Sidebar */}
+        <div className="lg:w-96 space-y-8">
+          <div className="bg-white/80 glass-effect rounded-[40px] p-8 shadow-xl border border-white sticky top-28">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-xl font-black uppercase italic sport-font tracking-tight text-slate-900">
+                分析历史
+              </h3>
+              <div className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold uppercase tracking-tighter">本地数据库</div>
+            </div>
             
             {history.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              <div className="text-center py-16 px-4">
+                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-100">
+                  <svg className="w-10 h-10 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <p className="text-sm text-slate-400">暂无分析记录</p>
+                <p className="text-slate-400 text-sm font-medium">暂无历史记录。开始你的第一次训练分析吧！</p>
               </div>
             ) : (
-              <div className="space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
+              <div className="space-y-4 max-h-[calc(100vh-450px)] overflow-y-auto pr-3 custom-scrollbar">
                 {history.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => loadFromHistory(item)}
-                    className="w-full text-left p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all group"
+                    className="w-full text-left p-4 rounded-2xl bg-white border border-slate-100 hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-300 group flex items-center space-x-4"
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-bold text-slate-700">{item.project}</span>
-                      <span className="text-xs font-bold text-blue-600">{item.analysis.score}分</span>
+                    <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden flex-shrink-0 group-hover:scale-110 transition-transform">
+                      <video src={item.videoUrl} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-slate-400">
-                        {new Date(item.timestamp).toLocaleString()}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-sm font-black uppercase text-slate-800 truncate">{item.project}</span>
+                        <span className="text-xs font-black text-blue-600 italic sport-font">{item.analysis.score} 分</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        {new Date(item.timestamp).toLocaleDateString()} · {new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                       </span>
-                      <svg className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                      </svg>
                     </div>
                   </button>
                 ))}
@@ -252,9 +259,9 @@ const App: React.FC = () => {
             {history.length > 0 && (
               <button 
                 onClick={handleClearHistory}
-                className="w-full mt-6 py-2 text-xs text-slate-400 hover:text-red-500 transition-colors border-t border-slate-50 pt-4 text-center"
+                className="w-full mt-8 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-red-500 transition-colors border-t border-slate-50 pt-6"
               >
-                清空本地数据库
+                清空本地数据
               </button>
             )}
           </div>
@@ -262,9 +269,10 @@ const App: React.FC = () => {
       </main>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       `}} />
     </div>
   );
