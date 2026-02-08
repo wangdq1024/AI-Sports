@@ -2,12 +2,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SportProject, AnalysisResult, HistoryItem } from './types';
 import { analyzeSportsVideoStreaming } from './services/geminiService';
+import { saveHistoryItem, getHistory, clearHistory, deleteHistoryItem, PersistedHistoryItem } from './services/dbService';
 import Header from './components/Header';
 import ProjectSelector from './components/ProjectSelector';
 import VideoUploader from './components/VideoUploader';
 import AnalysisReport from './components/AnalysisReport';
-
-const STORAGE_KEY = 'sports_ai_history_v1';
 
 const App: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<SportProject>(SportProject.LONG_JUMP);
@@ -20,22 +19,28 @@ const App: React.FC = () => {
   
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Load history from localStorage
+  // Load history from IndexedDB on mount
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
+    const loadData = async () => {
       try {
-        setHistory(JSON.parse(saved));
+        const persistedItems = await getHistory();
+        // Convert Blobs to temporary URLs for the UI
+        const historyWithUrls: HistoryItem[] = persistedItems.map(item => ({
+          ...item,
+          videoUrl: URL.createObjectURL(item.videoBlob)
+        }));
+        setHistory(historyWithUrls);
       } catch (e) {
-        console.error("Failed to parse history", e);
+        console.error("Failed to load history from IndexedDB", e);
       }
-    }
-  }, []);
+    };
+    loadData();
 
-  // Save history to localStorage
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-  }, [history]);
+    // Cleanup URLs on unmount
+    return () => {
+      history.forEach(item => URL.revokeObjectURL(item.videoUrl));
+    };
+  }, []);
 
   // Auto scroll to bottom of stream
   useEffect(() => {
@@ -46,6 +51,7 @@ const App: React.FC = () => {
 
   const handleFileSelect = (file: File) => {
     setVideoFile(file);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(URL.createObjectURL(file));
     setReport(null);
     setStreamingText("");
@@ -87,15 +93,24 @@ const App: React.FC = () => {
           const result = JSON.parse(jsonMatch[1] || jsonMatch[0]) as AnalysisResult;
           setReport(result);
           
-          // Add to history
-          const newItem: HistoryItem = {
-            id: Date.now().toString(),
+          const id = Date.now().toString();
+          
+          // Save to IndexedDB (with actual Blob)
+          const persistedItem: PersistedHistoryItem = {
+            id,
             project: selectedProject,
             timestamp: Date.now(),
-            videoUrl: previewUrl || '',
+            videoBlob: videoFile,
             analysis: result
           };
-          setHistory(prev => [newItem, ...prev].slice(0, 20)); // Keep last 20
+          await saveHistoryItem(persistedItem);
+
+          // Update State (with URL)
+          const newItem: HistoryItem = {
+            ...persistedItem,
+            videoUrl: previewUrl || ''
+          };
+          setHistory(prev => [newItem, ...prev].slice(0, 20));
         } catch (e) {
           console.error("JSON parse failed", e);
         }
@@ -113,8 +128,20 @@ const App: React.FC = () => {
     setPreviewUrl(item.videoUrl);
     setReport(item.analysis);
     setStreamingText("从历史记录加载...");
-    setVideoFile(null); // Prevent re-analysis of historical items easily
+    setVideoFile(null); 
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleClearHistory = async () => {
+    if(confirm('确定清空所有历史记录吗？')) {
+      try {
+        await clearHistory();
+        history.forEach(item => URL.revokeObjectURL(item.videoUrl));
+        setHistory([]);
+      } catch (e) {
+        console.error("Failed to clear history", e);
+      }
+    }
   };
 
   return (
@@ -122,14 +149,13 @@ const App: React.FC = () => {
       <Header />
 
       <main className="flex-grow container mx-auto px-4 py-8 max-w-6xl flex flex-col lg:flex-row gap-8">
-        {/* Left Column: Analysis Workspace */}
         <div className="flex-1">
           <section className="text-center lg:text-left mb-12">
             <h1 className="text-4xl font-extrabold text-slate-900 mb-4">
               AI 运动 <span className="text-blue-600">实时分析</span>
             </h1>
             <p className="text-lg text-slate-600">
-              专业教练级深度点评，助你每一跳、每一掷都更完美。
+              数据已加密存储于本地 IndexedDB，支持刷新后继续查看视频与报告。
             </p>
           </section>
 
@@ -158,7 +184,6 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Streaming Commentary Section */}
           {(streamingText || isAnalyzing) && (
             <div className="mt-8 bg-slate-900 text-slate-100 rounded-3xl p-6 shadow-2xl overflow-hidden border border-slate-700">
               <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
@@ -181,14 +206,13 @@ const App: React.FC = () => {
           {report && <AnalysisReport report={report} />}
         </div>
 
-        {/* Right Column: History Sidebar */}
         <div className="lg:w-80 space-y-6">
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 sticky top-24">
             <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center">
               <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              分析历史
+              分析历史 (本地保存)
             </h3>
             
             {history.length === 0 ? (
@@ -214,7 +238,7 @@ const App: React.FC = () => {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] text-slate-400">
-                        {new Date(item.timestamp).toLocaleDateString()}
+                        {new Date(item.timestamp).toLocaleString()}
                       </span>
                       <svg className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
@@ -227,10 +251,10 @@ const App: React.FC = () => {
 
             {history.length > 0 && (
               <button 
-                onClick={() => { if(confirm('确定清空所有历史记录吗？')) setHistory([]); }}
-                className="w-full mt-6 py-2 text-xs text-slate-400 hover:text-red-500 transition-colors border-t border-slate-50 pt-4"
+                onClick={handleClearHistory}
+                className="w-full mt-6 py-2 text-xs text-slate-400 hover:text-red-500 transition-colors border-t border-slate-50 pt-4 text-center"
               >
-                清空历史
+                清空本地数据库
               </button>
             )}
           </div>

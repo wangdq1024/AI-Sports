@@ -1,5 +1,5 @@
 {
-  "name": "Copy of Sports AI - 中考体育视频分析助手",
+  "name": "中考体育视频分析助手",
   "description": "专业的中考体育动作分析平台。通过AI技术分析立定跳远、引体向上、实心球等运动录像，提供深度动作评估与科学改进建议，助力学生提升考试成绩。",
   "requestFramePermissions": [
     "camera"
