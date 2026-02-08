@@ -133,9 +133,9 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col pb-20 overflow-x-hidden">
       <Header />
 
-      <main className="flex-grow container mx-auto px-4 py-12 max-w-7xl flex flex-col lg:flex-row gap-10">
-        {/* Main Section */}
-        <div className="flex-1 space-y-10">
+      <main className="flex-grow container mx-auto px-4 py-12 max-w-7xl flex flex-col gap-12">
+        {/* Main Analysis Section */}
+        <div className="w-full space-y-10">
           <section className="text-center lg:text-left relative">
             <div className="absolute -left-10 top-0 w-24 h-24 bg-blue-500/10 blur-3xl rounded-full"></div>
             <h1 className="text-5xl md:text-6xl font-black text-slate-900 mb-6 leading-none sport-font italic tracking-tighter uppercase">
@@ -147,7 +147,6 @@ const App: React.FC = () => {
           </section>
 
           <div className="bg-white/60 glass-effect rounded-[40px] p-8 md:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white relative overflow-hidden">
-             {/* Decorative Elements */}
              <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-blue-50 to-transparent rounded-bl-full opacity-50"></div>
              
             <div className="mb-12 relative z-10">
@@ -212,57 +211,75 @@ const App: React.FC = () => {
           {report && <AnalysisReport report={report} />}
         </div>
 
-        {/* History Sidebar */}
-        <div className="lg:w-96 space-y-8">
-          <div className="bg-white/80 glass-effect rounded-[40px] p-8 shadow-xl border border-white sticky top-28">
-            <div className="flex items-center justify-between mb-8">
-              <h3 className="text-xl font-black uppercase italic sport-font tracking-tight text-slate-900">
-                分析历史
-              </h3>
-              <div className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold uppercase tracking-tighter">本地数据库</div>
+        {/* History Bottom Section */}
+        <div className="w-full mt-10">
+          <div className="bg-white/80 glass-effect rounded-[40px] p-8 md:p-12 shadow-xl border border-white">
+            <div className="flex items-center justify-between mb-10">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black italic shadow-lg -skew-x-6">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black uppercase italic sport-font tracking-tight text-slate-900">
+                    分析历史
+                  </h3>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">数据加密存储于本地浏览器 IndexedDB</p>
+                </div>
+              </div>
+              {history.length > 0 && (
+                <button 
+                  onClick={handleClearHistory}
+                  className="px-6 py-2 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all rounded-xl border border-slate-100"
+                >
+                  清空数据库
+                </button>
+              )}
             </div>
             
             {history.length === 0 ? (
-              <div className="text-center py-16 px-4">
-                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-100">
+              <div className="text-center py-20 px-4 bg-slate-50/50 rounded-[32px] border border-dashed border-slate-200">
+                <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-100 shadow-sm">
                   <svg className="w-10 h-10 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <p className="text-slate-400 text-sm font-medium">暂无历史记录。开始你的第一次训练分析吧！</p>
+                <p className="text-slate-400 text-sm font-medium">暂无历史记录。快去上传视频开始你的第一次智能分析吧！</p>
               </div>
             ) : (
-              <div className="space-y-4 max-h-[calc(100vh-450px)] overflow-y-auto pr-3 custom-scrollbar">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {history.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => loadFromHistory(item)}
-                    className="w-full text-left p-4 rounded-2xl bg-white border border-slate-100 hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-300 group flex items-center space-x-4"
+                    className="w-full text-left p-5 rounded-[32px] bg-white border border-slate-100 hover:border-blue-400 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 group relative overflow-hidden"
                   >
-                    <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden flex-shrink-0 group-hover:scale-110 transition-transform">
-                      <video src={item.videoUrl} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-sm font-black uppercase text-slate-800 truncate">{item.project}</span>
-                        <span className="text-xs font-black text-blue-600 italic sport-font">{item.analysis.score} 分</span>
+                    <div className="flex items-center space-x-4 mb-4">
+                      <div className="w-16 h-16 bg-slate-100 rounded-2xl overflow-hidden flex-shrink-0 group-hover:scale-110 transition-transform shadow-inner">
+                        <video src={item.videoUrl} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" />
                       </div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        {new Date(item.timestamp).toLocaleDateString()} · {new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-black uppercase text-slate-800 truncate">{item.project}</span>
+                          <span className="text-xs font-black text-blue-600 italic sport-font ml-2">{item.analysis.score} 分</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                          {new Date(item.timestamp).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-slate-500 line-clamp-2 italic font-medium">
+                      "{item.analysis.overallEvaluation}"
+                    </div>
+                    <div className="absolute bottom-2 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                       <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M14 5l7 7-7 7" />
+                       </svg>
                     </div>
                   </button>
                 ))}
               </div>
-            )}
-
-            {history.length > 0 && (
-              <button 
-                onClick={handleClearHistory}
-                className="w-full mt-8 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-red-500 transition-colors border-t border-slate-50 pt-6"
-              >
-                清空本地数据
-              </button>
             )}
           </div>
         </div>
