@@ -1,64 +1,46 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
-import { SportProject, AnalysisResult } from "../types";
+import { GoogleGenAI } from "@google/genai";
+import { SportProject } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Always use const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
+// Initialize the Gemini API client using the environment variable directly.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const ANALYSIS_SCHEMA = {
-  type: Type.OBJECT,
-  properties: {
-    score: {
-      type: Type.NUMBER,
-      description: '动作规范分数 (0-100)',
-    },
-    pros: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-      description: '做得好的地方',
-    },
-    cons: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-      description: '存在的不足/扣分项',
-    },
-    suggestions: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-      description: '具体的改进建议和训练方法',
-    },
-    overallEvaluation: {
-      type: Type.STRING,
-      description: '综合评价',
-    }
-  },
-  required: ['score', 'pros', 'cons', 'suggestions', 'overallEvaluation'],
-};
-
-export async function analyzeSportsVideo(
+/**
+ * Analyzes sports video using Gemini 3 Pro model for complex biomechanical reasoning.
+ * Returns an async generator that yields streaming commentary and finally a JSON report.
+ */
+// FIX: Changed return type from Promise<AsyncGenerator> to AsyncGenerator as async function* returns the generator directly.
+export async function* analyzeSportsVideoStreaming(
   videoBase64: string,
   project: SportProject,
   mimeType: string
-): Promise<AnalysisResult> {
-  const modelName = 'gemini-3-flash-preview';
+): AsyncGenerator<string, void, unknown> {
+  // Use gemini-3-pro-preview for complex reasoning tasks like biomechanical analysis.
+  const modelName = 'gemini-3-pro-preview';
   
   const systemInstruction = `
     你是一名专业的中考体育教练和运动生物力学专家。
     请分析用户上传的${project}运动视频。
     
-    分析维度：
-    1. 准备阶段：站位、重心、预摆。
-    2. 发力阶段：核心收紧、爆发力运用、发力顺序。
-    3. 结束阶段：缓冲、落地稳健度、动作完整性。
+    任务流程：
+    1. 首先，以专业教练的口吻，实时描述你看到的动作细节（例如：预摆幅度、起跳角度、核心发力状态等）。这部分请直接输出文本。
+    2. 最后，提供一个 JSON 格式的总结报告，包含评分和具体建议。
     
-    对比标准：请参照中国中考体育评分标准和专业运动员技术动作。
+    JSON 格式要求（必须放在代码块 \`\`\`json ... \`\`\` 中）：
+    {
+      "score": number, (0-100)
+      "pros": string[],
+      "cons": string[],
+      "suggestions": string[],
+      "overallEvaluation": string
+    }
     
-    输出要求：
-    - 请给出具有专业性和针对性的评估。
-    - 建议应包含具体的训练方法（如：深蹲跳练习、核心稳定性训练等）。
-    - 语言要亲切、专业、鼓励性。
+    语气要求：专业、严谨、多用体育术语，同时保持对学生的鼓励。
   `;
 
-  const response = await ai.models.generateContent({
+  // Use generateContentStream to provide real-time coaching feedback.
+  const responseStream = await ai.models.generateContentStream({
     model: modelName,
     contents: {
       parts: [
@@ -68,16 +50,19 @@ export async function analyzeSportsVideo(
             data: videoBase64,
           },
         },
-        { text: `请对这个${project}的动作进行深度分析，并按照指定的JSON格式输出。` }
+        { text: `请开始对这组${project}动作进行流式实时分析。最后给出总结 JSON。` }
       ]
     },
     config: {
       systemInstruction: systemInstruction,
-      responseMimeType: "application/json",
-      responseSchema: ANALYSIS_SCHEMA,
     },
   });
 
-  const resultStr = response.text.trim();
-  return JSON.parse(resultStr) as AnalysisResult;
+  for await (const chunk of responseStream) {
+    // FIX: Access .text property directly on the chunk (not a method call).
+    const text = chunk.text;
+    if (text) {
+      yield text;
+    }
+  }
 }
